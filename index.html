@@ -95,8 +95,8 @@
       <div class="msg" id="adminMsg"></div>
     </div>
     <div class="card">
-      <h2>每人汇总(工资 = 总小时 × 时薪)</h2>
-      <table><thead><tr><th>姓名</th><th class="num">出勤天</th><th class="num">总小时</th><th class="num">时薪$</th><th class="num">工资$</th></tr></thead>
+      <h2>每人汇总(小时数发给会计)</h2>
+      <table><thead><tr><th>姓名</th><th class="num">出勤天数</th><th class="num">总小时</th></tr></thead>
       <tbody id="sumBody"></tbody></table>
     </div>
     <div class="card">
@@ -114,7 +114,7 @@
 </main>
 
 <footer>
-  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16j
+  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16k
 </footer>
 
 <script>
@@ -255,7 +255,6 @@ function calc(r) {
     const k = p.name;
     ((byPerson[k] = byPerson[k] || {})[p.d] = byPerson[k][p.d] || []).push(p);
   }
-  const rates = Object.fromEntries(r.employees.map(e => [e.name, Number(e.rate)]));
   const rows = [], sums = {};
   for (const name of Object.keys(byPerson).sort()) {
     sums[name] = { days: 0, hours: 0 };
@@ -275,27 +274,26 @@ function calc(r) {
       sums[name].hours += dayHours;
     }
   }
-  return { rows, sums, rates };
+  return { rows, sums };
 }
 const toMin = hhmm => +hhmm.slice(0, 2) * 60 + +hhmm.slice(3, 5);
 
 function renderReport(r) {
   adminData = r;
   setMsg('adminMsg', '', '');
-  const { rows, sums, rates } = calc(r);
+  const { rows, sums } = calc(r);
   $('detailBody').innerHTML = rows.map(x =>
     `<tr><td>${x.d.slice(5)}</td><td>${x.name}</td><td>${x.in}</td><td>${x.out || '<span class="flag">缺下班卡</span>'}</td><td class="num">${x.out ? x.hours.toFixed(2) : '—'}</td></tr>`).join('')
     || '<tr><td colspan="5" style="color:#889">本月没有打卡记录</td></tr>';
   $('sumBody').innerHTML = Object.keys(sums).sort().map(n => {
-    const s = sums[n], rate = rates[n] || 0;
-    return `<tr><td>${n}</td><td class="num">${s.days}</td><td class="num">${s.hours.toFixed(2)}</td><td class="num">${rate.toFixed(2)}</td><td class="num"><b>${(s.hours * rate).toFixed(2)}</b></td></tr>`;
-  }).join('') || '<tr><td colspan="5" style="color:#889">—</td></tr>';
+    const s = sums[n];
+    return `<tr><td>${n}</td><td class="num">${s.days}</td><td class="num"><b>${s.hours.toFixed(2)}</b></td></tr>`;
+  }).join('') || '<tr><td colspan="3" style="color:#889">—</td></tr>';
   $('empMgr').innerHTML = r.employees.map(e =>
-    `<div class="emp-row"><span><b>${e.name}</b> <span class="badge">时薪 $${Number(e.rate).toFixed(2)}</span>
+    `<div class="emp-row"><span><b>${e.name}</b>
       ${e.has_pw ? `<span class="badge pwbadge" style="display:${showPw ? '' : 'none'}">密码 ${e.pw || '?'}</span>` : ''}
       ${!e.has_pw ? '<span class="badge warn">未设密码</span>' : ''}</span>
-      <span><button class="btn sm" onclick="setPw('${e.name.replace(/'/g, "\\'")}')">设密码</button>
-      <button class="btn sm" onclick="setRate('${e.name.replace(/'/g, "\\'")}')">改时薪</button></span></div>`).join('');
+      <span><button class="btn sm" onclick="setPw('${e.name.replace(/'/g, "\\'")}')">设密码</button></span></div>`).join('');
 }
 
 let showPw = false;
@@ -323,23 +321,16 @@ window.setPw = async n => {
   alert(r.ok ? '已设置。' + n + ' 的密码:' + pw + '\n用它在 TA 手机上登录即可。' : r.err);
   loadReport();
 };
-window.setRate = async n => {
-  const v = prompt(n + ' 的时薪(美元/小时):');
-  if (v === null || v === '' || isNaN(+v)) return;
-  const r = await rpc('kent_admin_set_rate', { p_code: ls.kent_admin, p_name: n, p_rate: +v }).catch(e => ({ ok: false, err: e.message }));
-  if (!r.ok) alert(r.err);
-  loadReport();
-};
 
 $('csvBtn').onclick = () => {
   if (!adminData) return;
-  const { rows, sums, rates } = calc(adminData);
+  const { rows, sums } = calc(adminData);
   let csv = '﻿姓名,日期,上班,下班,小时,备注\n';
   for (const x of rows) csv += `${x.name},${x.d},${x.in},${x.out || ''},${x.out ? x.hours.toFixed(2) : ''},${x.out ? '' : '缺下班卡'}\n`;
-  csv += '\n姓名,出勤天数,总小时,时薪,工资\n';
+  csv += '\n姓名,出勤天数,总小时\n';
   for (const n of Object.keys(sums).sort()) {
-    const s = sums[n], rate = rates[n] || 0;
-    csv += `${n},${s.days},${s.hours.toFixed(2)},${rate.toFixed(2)},${(s.hours * rate).toFixed(2)}\n`;
+    const s = sums[n];
+    csv += `${n},${s.days},${s.hours.toFixed(2)}\n`;
   }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
