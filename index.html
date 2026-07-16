@@ -58,15 +58,11 @@
 <!-- 登录 -->
 <main id="viewLogin" style="display:none">
   <div class="card">
-    <h2>1. 点你的名字</h2>
-    <div class="grid" id="nameGrid"></div>
-  </div>
-  <div class="card">
-    <h2>2. 输入密码</h2>
+    <h2>输入密码登录</h2>
     <input type="password" id="loginPw" placeholder="密码" autocomplete="current-password">
     <button class="bigbtn in" id="loginBtn">登录</button>
     <div class="msg" id="loginMsg"></div>
-    <div class="status" style="margin-top:10px">密码由管理员保管,登录一次后一直免登录。登录后用 Safari 分享按钮「添加到主屏幕」,以后点桌面图标直接打卡。</div>
+    <div class="status" style="margin-top:10px">密码由管理员保管,每人不同,输密码即认人。登录一次后一直免登录;登录后用 Safari 分享按钮「添加到主屏幕」,以后点桌面图标直接打卡。</div>
   </div>
 </main>
 
@@ -118,7 +114,7 @@
 </main>
 
 <footer>
-  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16g
+  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16h
 </footer>
 
 <script>
@@ -130,7 +126,7 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 const sb = window.supabase.createClient(SB_URL, SB_KEY);
 const $ = id => document.getElementById(id);
 const ls = localStorage;
-let loginName = null, adminData = null;
+let adminData = null;
 
 async function rpc(fn, args) {
   const { data, error } = await sb.rpc(fn, args || {});
@@ -145,31 +141,20 @@ function show(view) {
 function setMsg(id, cls, text) { const m = $(id); m.className = 'msg ' + (cls || ''); m.textContent = text || ''; }
 
 /* ---------- 登录 ---------- */
-async function renderLogin() {
-  show('viewLogin');
-  try {
-    const names = await rpc('kent_names');
-    $('nameGrid').innerHTML = names.map(n =>
-      `<button class="${n.name === loginName ? 'sel' : ''}" onclick="pickName('${n.name.replace(/'/g, "\\'")}')">${n.name}</button>`).join('');
-  } catch (e) {
-    setMsg('loginMsg', 'err', '连不上系统:' + e.message);
-  }
-}
-window.pickName = n => { loginName = n; renderLogin(); };
+function renderLogin() { show('viewLogin'); }
 
 $('loginBtn').onclick = async () => {
-  if (!loginName) { setMsg('loginMsg', 'err', '先点上面你的名字'); return; }
   const pw = $('loginPw').value;
   if (!pw) { setMsg('loginMsg', 'err', '请输入密码'); return; }
   $('loginBtn').disabled = true;
   setMsg('loginMsg', 'wait', '登录中…');
   try {
-    const r = await rpc('kent_login', { p_name: loginName, p_password: pw });
-    if (!r.ok) { setMsg('loginMsg', 'err', r.err); $('loginBtn').disabled = false; return; }
+    const r = await rpc('kent_login_pw', { p_password: pw });
+    $('loginBtn').disabled = false;
+    if (!r.ok) { setMsg('loginMsg', 'err', r.err); return; }
     ls.kent_token = r.token; ls.kent_name = r.name;
     $('loginPw').value = '';
     setMsg('loginMsg', '', '');
-    $('loginBtn').disabled = false;
     enterPunch();
   } catch (e) { setMsg('loginMsg', 'err', e.message); $('loginBtn').disabled = false; }
 };
