@@ -1,15 +1,14 @@
--- Kent 打卡 v2:每人账号密码 + 管理员口令
+-- Kent 打卡 v2:每人账号密码 + 管理员口令(可整段重复执行)
 select set_config('search_path', 'public, extensions', false);
 create extension if not exists pgcrypto with schema extensions;
 
--- 员工表加字段
 alter table public.kent_employees
   add column if not exists password_hash text,
+  add column if not exists password_plain text,
   add column if not exists must_change boolean not null default true,
   add column if not exists hourly_rate numeric not null default 0,
   add column if not exists active boolean not null default true;
 
--- 登录会话表
 create table if not exists public.kent_sessions (
   token uuid primary key default gen_random_uuid(),
   employee_id bigint not null references public.kent_employees(id) on delete cascade,
@@ -18,20 +17,16 @@ create table if not exists public.kent_sessions (
 );
 alter table public.kent_sessions enable row level security;
 
--- 配置表(存管理员口令哈希)
 create table if not exists public.kent_config (key text primary key, value text not null);
 alter table public.kent_config enable row level security;
 
 insert into public.kent_config(key, value)
-values ('admin_hash', crypt('BB45BD13', gen_salt('bf')))
+values ('admin_hash', crypt('ltw88123', gen_salt('bf')))
 on conflict (key) do update set value = excluded.value;
 
--- 收紧旧的匿名直读/直写策略,全部改走下面的函数
 drop policy if exists "kent_read_emp" on public.kent_employees;
 drop policy if exists "kent_insert_punch" on public.kent_punches;
 drop policy if exists "kent_read_punch" on public.kent_punches;
-
--- ===== 函数 =====
 
 create or replace function public.kent_names()
 returns table(id bigint, name text)
@@ -76,8 +71,8 @@ begin
     return json_build_object('ok', false, 'err', '旧密码不对');
   end if;
   if length(p_new) < 4 then return json_build_object('ok', false, 'err', '新密码至少 4 位'); end if;
-  update kent_employees set password_hash = crypt(p_new, gen_salt('bf')), must_change = false where id = e.id;
-  delete from kent_sessions where employee_id = e.id and token <> p_token; -- 踢掉其他设备
+  update kent_employees set password_hash = crypt(p_new, gen_salt('bf')), password_plain = p_new, must_change = false where id = e.id;
+  delete from kent_sessions where employee_id = e.id and token <> p_token;
   return json_build_object('ok', true);
 end $$;
 
@@ -152,7 +147,8 @@ begin
       where to_char(p.created_at at time zone 'America/New_York', 'YYYY-MM') = p_month),
     'employees', (select coalesce(json_agg(json_build_object(
         'name', name, 'rate', hourly_rate, 'active', active,
-        'has_pw', password_hash is not null, 'must_change', must_change) order by id), '[]'::json)
+        'has_pw', password_hash is not null, 'must_change', must_change,
+        'pw', password_plain) order by id), '[]'::json)
       from kent_employees));
 end $$;
 
@@ -164,8 +160,8 @@ begin
   if length(p_new) < 4 then return json_build_object('ok', false, 'err', '密码至少 4 位'); end if;
   select id into eid from kent_employees where name = p_name;
   if not found then return json_build_object('ok', false, 'err', '没有这个员工'); end if;
-  update kent_employees set password_hash = crypt(p_new, gen_salt('bf')), must_change = true where id = eid;
-  delete from kent_sessions where employee_id = eid; -- 踢掉该员工所有设备
+  update kent_employees set password_hash = crypt(p_new, gen_salt('bf')), password_plain = p_new, must_change = true where id = eid;
+  delete from kent_sessions where employee_id = eid;
   return json_build_object('ok', true);
 end $$;
 
@@ -175,5 +171,14 @@ begin
   if not kent_admin_ok(p_code) then return json_build_object('ok', false, 'err', '管理员口令不对'); end if;
   update kent_employees set hourly_rate = p_rate where name = p_name;
   if not found then return json_build_object('ok', false, 'err', '没有这个员工'); end if;
+  return json_build_object('ok', true);
+end $$;
+
+create or replace function public.kent_admin_set_code(p_code text, p_new text)
+returns json language plpgsql security definer set search_path = public, extensions as $$
+begin
+  if not kent_admin_ok(p_code) then return json_build_object('ok', false, 'err', '管理员口令不对'); end if;
+  if length(p_new) < 6 then return json_build_object('ok', false, 'err', '新口令至少 6 位'); end if;
+  update kent_config set value = crypt(p_new, gen_salt('bf')) where key = 'admin_hash';
   return json_build_object('ok', true);
 end $$;

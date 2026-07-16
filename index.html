@@ -79,6 +79,7 @@
     <div class="row"><input type="password" id="pwNew2" placeholder="再输一遍新密码"></div>
     <button class="bigbtn in" id="pwBtn">确认修改</button>
     <div class="msg" id="pwMsg"></div>
+    <div class="status" style="margin-top:10px">注意:此密码管理员可以看到,请设一个专门用于打卡的密码,不要用你银行、微信、邮箱等的密码。</div>
   </div>
 </main>
 
@@ -121,15 +122,16 @@
       <tbody id="detailBody"></tbody></table>
     </div>
     <div class="card">
-      <h2>员工管理</h2>
+      <div class="topbar"><h2 style="margin:0">员工管理</h2><button class="btn sm" id="togglePwBtn">显示密码</button></div>
       <div id="empMgr"></div>
       <div class="status" style="margin-top:8px">「设密码」给新员工设初始密码或帮忘密码的人重设;设完对方所有已登录设备会被踢下线,首次登录必须改成自己的密码。加人/删人找 Claude。</div>
+      <div class="row"><button class="btn" id="adminPwBtn">修改管理员口令</button></div>
     </div>
   </div>
 </main>
 
 <footer>
-  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16e
+  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16f
 </footer>
 
 <script>
@@ -330,10 +332,29 @@ function renderReport(r) {
   }).join('') || '<tr><td colspan="5" style="color:#889">—</td></tr>';
   $('empMgr').innerHTML = r.employees.map(e =>
     `<div class="emp-row"><span><b>${e.name}</b> <span class="badge">时薪 $${Number(e.rate).toFixed(2)}</span>
+      ${e.has_pw ? `<span class="badge pwbadge" style="display:${showPw ? '' : 'none'}">密码 ${e.pw || '?'}</span>` : ''}
       ${!e.has_pw ? '<span class="badge warn">未设密码</span>' : e.must_change ? '<span class="badge warn">还没改初始密码</span>' : ''}</span>
       <span><button class="btn sm" onclick="setPw('${e.name.replace(/'/g, "\\'")}')">设密码</button>
       <button class="btn sm" onclick="setRate('${e.name.replace(/'/g, "\\'")}')">改时薪</button></span></div>`).join('');
 }
+
+let showPw = false;
+$('togglePwBtn').onclick = () => {
+  showPw = !showPw;
+  $('togglePwBtn').textContent = showPw ? '隐藏密码' : '显示密码';
+  document.querySelectorAll('.pwbadge').forEach(b => b.style.display = showPw ? '' : 'none');
+};
+
+$('adminPwBtn').onclick = async () => {
+  const n1 = prompt('新管理员口令(至少 6 位):');
+  if (!n1) return;
+  const n2 = prompt('再输一遍确认:');
+  if (n1 !== n2) { alert('两次输入不一样'); return; }
+  const r = await rpc('kent_admin_set_code', { p_code: ls.kent_admin, p_new: n1 }).catch(e => ({ ok: false, err: e.message }));
+  if (!r.ok) { alert(r.err); return; }
+  ls.kent_admin = n1;
+  alert('管理员口令已改为:' + n1 + '\n请记好,本机已自动更新。');
+};
 
 window.setPw = async n => {
   const pw = prompt('给 ' + n + ' 设初始密码(至少 4 位)。设完告诉 TA,首次登录会强制改掉:');
