@@ -62,7 +62,7 @@
     <input type="password" id="loginPw" placeholder="密码" autocomplete="current-password">
     <button class="bigbtn in" id="loginBtn">登录</button>
     <div class="msg" id="loginMsg"></div>
-    <div class="status" style="margin-top:10px">密码由管理员保管,每人不同,输密码即认人。登录一次后一直免登录;登录后用 Safari 分享按钮「添加到主屏幕」,以后点桌面图标直接打卡。</div>
+    <div class="status" style="margin-top:10px">密码找管理员要,输密码即登录。先「添加到主屏幕」再从桌面图标里登录,以后点图标直接打卡,一直免登录。</div>
   </div>
 </main>
 
@@ -107,14 +107,14 @@
     <div class="card">
       <div class="topbar"><h2 style="margin:0">员工管理</h2><button class="btn sm" id="togglePwBtn">显示密码</button></div>
       <div id="empMgr"></div>
-      <div class="status" style="margin-top:8px">「设密码」设置/重设某人的登录密码(设完 TA 原来登录的设备会被踢下线,用新密码在 TA 手机登录一次即可)。密码全部由你保管,员工不能自己改。加人/删人找 Claude。</div>
+      <div class="status" style="margin-top:8px">密码是一次性的:登录成功立即自动换新,列表里显示的永远是下次登录用的密码(旧的作废,告诉过别人也没用)。「设密码」可手动重设(该人已登录设备会被踢下线)。加人/删人找 Claude。</div>
       <div class="row"><button class="btn" id="adminPwBtn">修改管理员口令</button></div>
     </div>
   </div>
 </main>
 
 <footer>
-  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16m
+  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16n
 </footer>
 
 <script>
