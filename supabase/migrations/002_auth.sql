@@ -101,7 +101,6 @@ declare e public.kent_employees; last_type text;
 begin
   begin e := kent_auth(p_token);
   exception when others then return json_build_object('ok', false, 'err', '登录已失效,请重新登录', 'relogin', true); end;
-  if e.must_change then return json_build_object('ok', false, 'err', '请先修改密码'); end if;
   if p_type not in ('in', 'out') then return json_build_object('ok', false, 'err', 'bad type'); end if;
   select type into last_type from kent_punches
    where employee_id = e.id
@@ -160,7 +159,7 @@ begin
   if length(p_new) < 4 then return json_build_object('ok', false, 'err', '密码至少 4 位'); end if;
   select id into eid from kent_employees where name = p_name;
   if not found then return json_build_object('ok', false, 'err', '没有这个员工'); end if;
-  update kent_employees set password_hash = crypt(p_new, gen_salt('bf')), password_plain = p_new, must_change = true where id = eid;
+  update kent_employees set password_hash = crypt(p_new, gen_salt('bf')), password_plain = p_new, must_change = false where id = eid;
   delete from kent_sessions where employee_id = eid;
   return json_build_object('ok', true);
 end $$;

@@ -66,20 +66,7 @@
     <input type="password" id="loginPw" placeholder="密码" autocomplete="current-password">
     <button class="bigbtn in" id="loginBtn">登录</button>
     <div class="msg" id="loginMsg"></div>
-    <div class="status" style="margin-top:10px">登录一次后免登录。建议用 Safari/Chrome 打开后「添加到主屏幕」,以后点桌面图标直接打卡。</div>
-  </div>
-</main>
-
-<!-- 首次/修改密码 -->
-<main id="viewPw" style="display:none">
-  <div class="card">
-    <h2 id="pwTitle">首次登录,请设置你自己的新密码</h2>
-    <div class="row"><input type="password" id="pwOld" placeholder="旧密码(刚才用的那个)"></div>
-    <div class="row"><input type="password" id="pwNew" placeholder="新密码(至少 4 位)"></div>
-    <div class="row"><input type="password" id="pwNew2" placeholder="再输一遍新密码"></div>
-    <button class="bigbtn in" id="pwBtn">确认修改</button>
-    <div class="msg" id="pwMsg"></div>
-    <div class="status" style="margin-top:10px">注意:此密码管理员可以看到,请设一个专门用于打卡的密码,不要用你银行、微信、邮箱等的密码。</div>
+    <div class="status" style="margin-top:10px">密码由管理员保管,登录一次后一直免登录。登录后用 Safari 分享按钮「添加到主屏幕」,以后点桌面图标直接打卡。</div>
   </div>
 </main>
 
@@ -124,14 +111,14 @@
     <div class="card">
       <div class="topbar"><h2 style="margin:0">员工管理</h2><button class="btn sm" id="togglePwBtn">显示密码</button></div>
       <div id="empMgr"></div>
-      <div class="status" style="margin-top:8px">「设密码」给新员工设初始密码或帮忘密码的人重设;设完对方所有已登录设备会被踢下线,首次登录必须改成自己的密码。加人/删人找 Claude。</div>
+      <div class="status" style="margin-top:8px">「设密码」设置/重设某人的登录密码(设完 TA 原来登录的设备会被踢下线,用新密码在 TA 手机登录一次即可)。密码全部由你保管,员工不能自己改。加人/删人找 Claude。</div>
       <div class="row"><button class="btn" id="adminPwBtn">修改管理员口令</button></div>
     </div>
   </div>
 </main>
 
 <footer>
-  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16f
+  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16g
 </footer>
 
 <script>
@@ -152,7 +139,7 @@ async function rpc(fn, args) {
 }
 
 function show(view) {
-  for (const v of ['viewLogin', 'viewPw', 'viewPunch', 'viewAdmin'])
+  for (const v of ['viewLogin', 'viewPunch', 'viewAdmin'])
     $(v).style.display = v === view ? '' : 'none';
 }
 function setMsg(id, cls, text) { const m = $(id); m.className = 'msg ' + (cls || ''); m.textContent = text || ''; }
@@ -183,24 +170,8 @@ $('loginBtn').onclick = async () => {
     $('loginPw').value = '';
     setMsg('loginMsg', '', '');
     $('loginBtn').disabled = false;
-    if (r.must_change) show('viewPw'); else enterPunch();
-  } catch (e) { setMsg('loginMsg', 'err', e.message); $('loginBtn').disabled = false; }
-};
-
-/* ---------- 改密码 ---------- */
-$('pwBtn').onclick = async () => {
-  const o = $('pwOld').value, n1 = $('pwNew').value, n2 = $('pwNew2').value;
-  if (!o || !n1) { setMsg('pwMsg', 'err', '请填完整'); return; }
-  if (n1 !== n2) { setMsg('pwMsg', 'err', '两次新密码不一样'); return; }
-  if (n1.length < 4) { setMsg('pwMsg', 'err', '新密码至少 4 位'); return; }
-  $('pwBtn').disabled = true;
-  try {
-    const r = await rpc('kent_change_password', { p_token: ls.kent_token, p_old: o, p_new: n1 });
-    $('pwBtn').disabled = false;
-    if (!r.ok) { setMsg('pwMsg', 'err', r.err); if (r.relogin) logout(); return; }
-    $('pwOld').value = $('pwNew').value = $('pwNew2').value = '';
     enterPunch();
-  } catch (e) { setMsg('pwMsg', 'err', e.message); $('pwBtn').disabled = false; }
+  } catch (e) { setMsg('loginMsg', 'err', e.message); $('loginBtn').disabled = false; }
 };
 
 /* ---------- 打卡 ---------- */
@@ -222,7 +193,6 @@ async function enterPunch() {
   try {
     const r = await rpc('kent_my_today', { p_token: ls.kent_token });
     if (!r.ok) { logout(); return; }
-    if (r.must_change) { show('viewPw'); return; }
     renderToday(r.punches);
   } catch (e) { setMsg('punchMsg', 'err', e.message); }
 }
@@ -243,7 +213,7 @@ $('punchBtn').onclick = () => {
     }
     try {
       const res = await rpc('kent_punch', { p_token: ls.kent_token, p_type: goingIn ? 'in' : 'out', p_lat: here.lat, p_lng: here.lng, p_dist: dist });
-      if (!res.ok) { setMsg('punchMsg', 'err', res.err); if (res.relogin) { logout(); return; } $('punchBtn').disabled = false; if (res.err === '请先修改密码') show('viewPw'); return; }
+      if (!res.ok) { setMsg('punchMsg', 'err', res.err); if (res.relogin) { logout(); return; } $('punchBtn').disabled = false; return; }
       setMsg('punchMsg', 'ok', '✅ ' + (goingIn ? '上班' : '下班') + '打卡成功(距中心 ' + dist + ' 米)');
       renderToday(res.punches);
     } catch (e) { setMsg('punchMsg', 'err', e.message); $('punchBtn').disabled = false; }
@@ -333,7 +303,7 @@ function renderReport(r) {
   $('empMgr').innerHTML = r.employees.map(e =>
     `<div class="emp-row"><span><b>${e.name}</b> <span class="badge">时薪 $${Number(e.rate).toFixed(2)}</span>
       ${e.has_pw ? `<span class="badge pwbadge" style="display:${showPw ? '' : 'none'}">密码 ${e.pw || '?'}</span>` : ''}
-      ${!e.has_pw ? '<span class="badge warn">未设密码</span>' : e.must_change ? '<span class="badge warn">还没改初始密码</span>' : ''}</span>
+      ${!e.has_pw ? '<span class="badge warn">未设密码</span>' : ''}</span>
       <span><button class="btn sm" onclick="setPw('${e.name.replace(/'/g, "\\'")}')">设密码</button>
       <button class="btn sm" onclick="setRate('${e.name.replace(/'/g, "\\'")}')">改时薪</button></span></div>`).join('');
 }
@@ -357,10 +327,10 @@ $('adminPwBtn').onclick = async () => {
 };
 
 window.setPw = async n => {
-  const pw = prompt('给 ' + n + ' 设初始密码(至少 4 位)。设完告诉 TA,首次登录会强制改掉:');
+  const pw = prompt('给 ' + n + ' 设登录密码(至少 4 位),设完用它在 TA 手机上登录:');
   if (!pw) return;
   const r = await rpc('kent_admin_reset', { p_code: ls.kent_admin, p_name: n, p_new: pw }).catch(e => ({ ok: false, err: e.message }));
-  alert(r.ok ? '已设置。' + n + ' 的初始密码:' + pw : r.err);
+  alert(r.ok ? '已设置。' + n + ' 的密码:' + pw + '\n用它在 TA 手机上登录即可。' : r.err);
   loadReport();
 };
 window.setRate = async n => {
