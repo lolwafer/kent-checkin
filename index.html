@@ -114,7 +114,7 @@
 </main>
 
 <footer>
-  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16h
+  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16i
 </footer>
 
 <script>
@@ -211,7 +211,6 @@ $('punchBtn').onclick = () => {
 function logout() {
   if (ls.kent_token) rpc('kent_logout', { p_token: ls.kent_token }).catch(() => {});
   ls.removeItem('kent_token'); ls.removeItem('kent_name');
-  loginName = null;
   renderLogin();
 }
 $('logoutBtn').onclick = () => { if (confirm('退出登录?下次要重新输密码。')) logout(); };
