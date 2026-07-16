@@ -52,7 +52,7 @@
 <body>
 <header>
   <h1>Kent Senior Center 打卡</h1>
-  <div class="sub">144-89 38th Ave, Flushing · 现场 164 尺内打卡</div>
+  <div class="sub">144-89 38th Ave, Flushing · 现场 164 尺内 · 早 7:00 — 下午 5:00</div>
 </header>
 
 <!-- 登录 -->
@@ -73,6 +73,20 @@
     <div class="status" id="todayStatus"></div>
     <button class="bigbtn in" id="punchBtn"></button>
     <div class="msg" id="punchMsg"></div>
+  </div>
+  <div class="card">
+    <div class="topbar"><h2 style="margin:0">本月我的记录</h2><button class="btn sm" id="fixToggle">申请修改</button></div>
+    <table><thead><tr><th>日期</th><th>上班</th><th>下班</th><th class="num">小时</th></tr></thead>
+    <tbody id="myBody"></tbody></table>
+    <div id="fixForm" style="display:none;margin-top:10px;border-top:1px solid #eee;padding-top:8px">
+      <div class="row"><label style="font-size:14px">日期</label><input type="date" id="fixDate" style="width:auto"></div>
+      <div class="row"><label style="font-size:14px">上班</label><input type="time" id="fixIn" style="width:auto">
+        <label style="font-size:14px">下班</label><input type="time" id="fixOut" style="width:auto"></div>
+      <div class="row"><input id="fixReason" placeholder="原因(如:忘打卡)"></div>
+      <div class="row"><button class="btn solid" id="fixSubmit">提交,等管理员批准</button></div>
+      <div class="msg" id="fixMsg"></div>
+    </div>
+    <div id="myReqs" style="margin-top:8px"></div>
   </div>
 </main>
 
@@ -105,6 +119,10 @@
       <tbody id="detailBody"></tbody></table>
     </div>
     <div class="card">
+      <h2>待审批的修改申请</h2>
+      <div id="reqList"></div>
+    </div>
+    <div class="card">
       <div class="topbar"><h2 style="margin:0">员工管理</h2><button class="btn sm" id="togglePwBtn">显示密码</button></div>
       <div id="empMgr"></div>
       <div class="status" style="margin-top:8px">密码是一次性的:登录成功立即自动换新,列表里显示的永远是下次登录用的密码(旧的作废,告诉过别人也没用)。「设密码」可手动重设(该人已登录设备会被踢下线)。加人/删人找 Claude。</div>
@@ -114,7 +132,7 @@
 </main>
 
 <footer>
-  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16n
+  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16o
 </footer>
 
 <script>
@@ -182,8 +200,58 @@ async function enterPunch() {
     const r = await rpc('kent_my_today', { p_token: ls.kent_token });
     if (!r.ok) { logout(); return; }
     renderToday(r.punches);
+    loadMyMonth();
   } catch (e) { setMsg('punchMsg', 'err', e.message); }
 }
+
+const ymNow = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+
+async function loadMyMonth() {
+  try {
+    const r = await rpc('kent_my_month', { p_token: ls.kent_token, p_month: ymNow() });
+    if (!r.ok) return;
+    const byDay = {};
+    for (const x of r.punches) (byDay[x.d] = byDay[x.d] || []).push(x);
+    let rows = '';
+    for (const d of Object.keys(byDay).sort().reverse()) {
+      let open = null;
+      const pairs = [];
+      for (const x of byDay[d]) {
+        if (x.type === 'in') open = x;
+        else if (open) { pairs.push([open, x]); open = null; }
+      }
+      if (open) pairs.push([open, null]);
+      for (const [i, o] of pairs) {
+        const h = o ? ((toMin(o.hhmm) - toMin(i.hhmm)) / 60).toFixed(2) : '';
+        rows += `<tr><td>${d.slice(5)}</td><td>${i.hhmm}${i.manual ? '*' : ''}</td><td>${o ? o.hhmm + (o.manual ? '*' : '') : '<span class="flag">缺卡</span>'}</td><td class="num">${h || '—'}</td></tr>`;
+      }
+    }
+    $('myBody').innerHTML = rows || '<tr><td colspan="4" style="color:#889">本月还没有记录</td></tr>';
+    const stTxt = { pending: '⏳ 等管理员批准', approved: '✅ 已批准', rejected: '❌ 已拒绝' };
+    $('myReqs').innerHTML = r.requests.map(q =>
+      `<div style="font-size:13px;color:#556;padding:3px 0">修改申请 ${q.d.slice(5)} ${q.in}–${q.out}:${stTxt[q.status] || q.status}</div>`).join('');
+  } catch (e) { /* 静默 */ }
+}
+
+$('fixToggle').onclick = () => {
+  const f = $('fixForm');
+  f.style.display = f.style.display === 'none' ? '' : 'none';
+  if (!$('fixDate').value) $('fixDate').value = new Date().toISOString().slice(0, 10);
+};
+
+$('fixSubmit').onclick = async () => {
+  const d = $('fixDate').value, ti = $('fixIn').value, to = $('fixOut').value, why = $('fixReason').value.trim();
+  if (!d || !ti || !to) { setMsg('fixMsg', 'err', '请把日期和上下班时间填完整'); return; }
+  $('fixSubmit').disabled = true;
+  try {
+    const r = await rpc('kent_request_fix', { p_token: ls.kent_token, p_date: d, p_in: ti, p_out: to, p_reason: why });
+    $('fixSubmit').disabled = false;
+    if (!r.ok) { setMsg('fixMsg', 'err', r.err); if (r.relogin) logout(); return; }
+    setMsg('fixMsg', 'ok', '已提交,等管理员批准。');
+    $('fixReason').value = '';
+    loadMyMonth();
+  } catch (e) { setMsg('fixMsg', 'err', e.message); $('fixSubmit').disabled = false; }
+};
 
 $('punchBtn').onclick = () => {
   const goingIn = $('punchBtn').classList.contains('in');
@@ -209,6 +277,7 @@ $('punchBtn').onclick = () => {
       if (!res.ok) { setMsg('punchMsg', 'err', res.err); if (res.relogin) { logout(); return; } $('punchBtn').disabled = false; return; }
       setMsg('punchMsg', 'ok', '✅ ' + (goingIn ? '上班' : '下班') + '打卡成功(距离 ' + ft(dist) + ' 尺)');
       renderToday(res.punches);
+      loadMyMonth();
     } catch (e) { setMsg('punchMsg', 'err', e.message); $('punchBtn').disabled = false; }
   }, err => {
     setMsg('punchMsg', 'err', err.code === 1 ? '定位权限被拒。请在手机设置里允许本网页/浏览器使用定位。' : '定位失败,请重试。');
@@ -267,7 +336,7 @@ function calc(r) {
         if (e.type === 'in') open = e;
         else if (open) {
           const h = (toMin(e.hhmm) - toMin(open.hhmm)) / 60;
-          rows.push({ d, name, in: open.hhmm, out: e.hhmm, hours: h });
+          rows.push({ d, name, in: open.hhmm + (open.manual ? '*' : ''), out: e.hhmm + (e.manual ? '*' : ''), hours: h });
           dayHours += h; worked = true; open = null;
         }
       }
@@ -287,6 +356,12 @@ function renderReport(r) {
   $('detailBody').innerHTML = rows.map(x =>
     `<tr><td>${x.d.slice(5)}</td><td>${x.name}</td><td>${x.in}</td><td>${x.out || '<span class="flag">缺下班卡</span>'}</td><td class="num">${x.out ? x.hours.toFixed(2) : '—'}</td></tr>`).join('')
     || '<tr><td colspan="5" style="color:#889">本月没有打卡记录</td></tr>';
+  $('reqList').innerHTML = (r.requests || []).map(q =>
+    `<div class="emp-row"><span><b>${q.name}</b> ${q.d} ${q.in}–${q.out}<br>
+      <span style="font-size:12px;color:#889">原因:${q.reason || '(未填)'} · 提交于 ${q.at}</span></span>
+      <span><button class="btn sm solid" onclick="decide(${q.id}, true)">批准</button>
+      <button class="btn sm" style="border-color:#c62828;color:#c62828" onclick="decide(${q.id}, false)">拒绝</button></span></div>`).join('')
+    || '<div style="color:#889;font-size:14px">没有待审批的申请</div>';
   $('sumBody').innerHTML = Object.keys(sums).sort().map(n => {
     const s = sums[n];
     return `<tr><td>${n}</td><td class="num">${s.days}</td><td class="num"><b>${s.hours.toFixed(2)}</b></td></tr>`;
@@ -297,6 +372,13 @@ function renderReport(r) {
       ${!e.has_pw ? '<span class="badge warn">未设密码</span>' : ''}</span>
       <span><button class="btn sm" onclick="setPw('${e.name.replace(/'/g, "\\'")}')">设密码</button></span></div>`).join('');
 }
+
+window.decide = async (id, ok) => {
+  if (!confirm(ok ? '批准这条修改?当天原有打卡记录会被替换。' : '拒绝这条申请?')) return;
+  const r = await rpc('kent_admin_decide', { p_code: ls.kent_admin, p_req_id: id, p_approve: ok }).catch(e => ({ ok: false, err: e.message }));
+  if (!r.ok) alert(r.err);
+  loadReport();
+};
 
 let showPw = false;
 $('togglePwBtn').onclick = () => {
