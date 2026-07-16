@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kent打卡">
 <title>Kent 前台打卡</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -11,9 +14,6 @@
   header { background: #2e7d32; color: #fff; padding: 14px 16px; text-align: center; }
   header h1 { font-size: 20px; }
   header .sub { font-size: 12px; opacity: .85; margin-top: 2px; }
-  nav { display: flex; background: #fff; border-bottom: 1px solid #ddd; }
-  nav button { flex: 1; padding: 12px; font-size: 17px; border: none; background: none; color: #667; border-bottom: 3px solid transparent; }
-  nav button.on { color: #2e7d32; border-bottom-color: #2e7d32; font-weight: 600; }
   main { max-width: 560px; margin: 0 auto; padding: 14px; }
   .card { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.07); }
   .card h2 { font-size: 15px; color: #556; margin-bottom: 10px; }
@@ -29,26 +29,24 @@
   .msg.err { background: #fdecea; color: #b71c1c; display: block; }
   .msg.wait { background: #fff8e1; color: #795500; display: block; }
   .status { font-size: 15px; color: #556; margin-top: 8px; }
-  table { width: 100%; border-collapse: collapse; font-size: 15px; }
-  th, td { padding: 8px 6px; border-bottom: 1px solid #eee; text-align: left; }
-  th { color: #667; font-weight: 600; font-size: 13px; }
-  td.num, th.num { text-align: right; }
-  tr.click { cursor: pointer; }
-  tr.click:active { background: #f0f4f0; }
-  .flag { color: #c62828; font-size: 12px; }
-  .today li { padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 15px; list-style: none; display: flex; justify-content: space-between; }
-  .tag { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
-  .tag.in { background: #e6f4e6; color: #1b5e20; }
-  .tag.out { background: #fff3e0; color: #ef6c00; }
-  .row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
-  input, select { padding: 10px; font-size: 16px; border: 1px solid #ccd; border-radius: 8px; background: #fff; }
-  .btn { padding: 10px 14px; font-size: 15px; border: 1px solid #2e7d32; color: #2e7d32; background: #fff; border-radius: 8px; }
-  .btn.solid { background: #2e7d32; color: #fff; }
+  .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  input, select { padding: 12px; font-size: 17px; border: 1px solid #ccd; border-radius: 8px; background: #fff; width: 100%; }
+  input[type=month] { width: auto; }
+  .btn { padding: 11px 16px; font-size: 16px; border: 1px solid #2e7d32; color: #2e7d32; background: #fff; border-radius: 8px; white-space: nowrap; }
+  .btn.solid { background: #2e7d32; color: #fff; border: none; }
+  .btn.sm { padding: 6px 10px; font-size: 13px; }
+  .link { color: #667; font-size: 14px; background: none; border: none; text-decoration: underline; }
   footer { text-align: center; font-size: 12px; color: #99a; margin-top: 20px; }
-  .rpt-row { display: grid; grid-template-columns: 70px 60px 60px 60px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px; }
-  .rpt-row.hd { font-weight: 600; color: #667; }
-  .rpt-cell { text-align: center; }
-  .rpt-cell.left { text-align: left; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 7px 5px; border-bottom: 1px solid #eee; text-align: left; }
+  th { color: #667; font-weight: 600; font-size: 12px; }
+  td.num, th.num { text-align: right; }
+  .flag { color: #c62828; font-size: 12px; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .topbar b { font-size: 18px; }
+  .emp-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; gap: 6px; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #eee; color: #667; }
+  .badge.warn { background: #fdecea; color: #b71c1c; }
 </style>
 </head>
 <body>
@@ -56,236 +54,321 @@
   <h1>Kent Senior Center 打卡</h1>
   <div class="sub">144-89 38th Ave, Flushing · 现场 150 米内打卡</div>
 </header>
-<nav>
-  <button id="tabPunch" class="on">打卡</button>
-  <button id="tabReport">报表</button>
-</nav>
 
-<main id="viewPunch">
+<!-- 登录 -->
+<main id="viewLogin" style="display:none">
   <div class="card">
-    <h2>选择员工</h2>
-    <div class="grid" id="empGrid"></div>
+    <h2>1. 点你的名字</h2>
+    <div class="grid" id="nameGrid"></div>
   </div>
-  <div class="card" id="panel" style="display:none">
-    <h2 id="panelTitle"></h2>
-    <div class="status" id="panelStatus"></div>
+  <div class="card">
+    <h2>2. 输入密码</h2>
+    <input type="password" id="loginPw" placeholder="密码" autocomplete="current-password">
+    <button class="bigbtn in" id="loginBtn">登录</button>
+    <div class="msg" id="loginMsg"></div>
+    <div class="status" style="margin-top:10px">登录一次后免登录。建议用 Safari/Chrome 打开后「添加到主屏幕」,以后点桌面图标直接打卡。</div>
+  </div>
+</main>
+
+<!-- 首次/修改密码 -->
+<main id="viewPw" style="display:none">
+  <div class="card">
+    <h2 id="pwTitle">首次登录,请设置你自己的新密码</h2>
+    <div class="row"><input type="password" id="pwOld" placeholder="旧密码(刚才用的那个)"></div>
+    <div class="row"><input type="password" id="pwNew" placeholder="新密码(至少 4 位)"></div>
+    <div class="row"><input type="password" id="pwNew2" placeholder="再输一遍新密码"></div>
+    <button class="bigbtn in" id="pwBtn">确认修改</button>
+    <div class="msg" id="pwMsg"></div>
+  </div>
+</main>
+
+<!-- 打卡 -->
+<main id="viewPunch" style="display:none">
+  <div class="card">
+    <div class="topbar"><b id="whoami"></b><button class="link" id="logoutBtn">退出登录</button></div>
+    <div class="status" id="todayStatus"></div>
     <button class="bigbtn in" id="punchBtn"></button>
-    <div class="msg" id="msg"></div>
-  </div>
-  <div class="card">
-    <h2>今日打卡</h2>
-    <div id="todayList"></div>
+    <div class="msg" id="punchMsg"></div>
   </div>
 </main>
 
-<main id="viewReport" style="display:none">
-  <div class="card">
-    <div class="row">
-      <label style="font-size:15px">月份</label>
-      <input type="month" id="monthPick">
+<!-- 管理员 -->
+<main id="viewAdmin" style="display:none">
+  <div class="card" id="adminGate">
+    <h2>管理员口令</h2>
+    <input type="password" id="adminCode" placeholder="口令">
+    <button class="bigbtn in" id="adminLoginBtn">进入</button>
+    <div class="msg" id="adminGateMsg"></div>
+  </div>
+  <div id="adminPanel" style="display:none">
+    <div class="card">
+      <div class="topbar"><b>月度报表</b><button class="link" id="adminExitBtn">退出管理</button></div>
+      <div class="row">
+        <input type="month" id="monthPick">
+        <button class="btn solid" id="loadBtn">载入</button>
+        <button class="btn" id="csvBtn">导出 CSV</button>
+      </div>
+      <div class="msg" id="adminMsg"></div>
     </div>
-    <div id="reportTable" style="margin-top:12px"></div>
+    <div class="card">
+      <h2>每人汇总(工资 = 总小时 × 时薪)</h2>
+      <table><thead><tr><th>姓名</th><th class="num">出勤天</th><th class="num">总小时</th><th class="num">时薪$</th><th class="num">工资$</th></tr></thead>
+      <tbody id="sumBody"></tbody></table>
+    </div>
+    <div class="card">
+      <h2>每天打卡明细</h2>
+      <table><thead><tr><th>日期</th><th>姓名</th><th>上班</th><th>下班</th><th class="num">小时</th></tr></thead>
+      <tbody id="detailBody"></tbody></table>
+    </div>
+    <div class="card">
+      <h2>员工管理</h2>
+      <div id="empMgr"></div>
+      <div class="status" style="margin-top:8px">「设密码」给新员工设初始密码或帮忘密码的人重设;设完对方所有已登录设备会被踢下线,首次登录必须改成自己的密码。加人/删人找 Claude。</div>
+    </div>
   </div>
 </main>
 
-<footer>Kent 打卡 v2026-07-16d · 由 Supabase 驱动</footer>
+<footer>
+  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16e
+</footer>
 
 <script>
 const CENTER = { lat: 40.7638555, lng: -73.8196091 };
 const RADIUS = 150;
-const SUPABASE_URL = 'https://objoggkkfqzzkfnitjlb.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9iam9nZ2trZnF6emtmbml0amxiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNzQ5MjcsImV4cCI6MjA5OTc1MDkyN30.y_giQDWURvKJ_FgZTsBZru9NEs7QtDoBY2P_fl4M1vQ';
+const SB_URL = 'https://objoggkkfqzzkfnitjlb.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9iam9nZ2trZnF6emtmbml0amxiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNzQ5MjcsImV4cCI6MjA5OTc1MDkyN30.y_giQDWURvKJ_FgZTsBZru9NEs7QtDoBY2P_fl4M1vQ';
 
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-let selEmp = null;
+const sb = window.supabase.createClient(SB_URL, SB_KEY);
+const $ = id => document.getElementById(id);
+const ls = localStorage;
+let loginName = null, adminData = null;
 
-const pad = n => String(n).padStart(2, '0');
-const dstr = ts => { const d = new Date(ts); return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()); };
-const tstr = ts => { const d = new Date(ts); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
-
-function hav(a, b) {
-  const R = 6371000, r = x => x * Math.PI / 180;
-  const dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng);
-  const s = Math.sin(dLat/2)**2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng/2)**2;
-  return 2 * R * Math.asin(Math.sqrt(s));
+async function rpc(fn, args) {
+  const { data, error } = await sb.rpc(fn, args || {});
+  if (error) throw new Error(error.message);
+  return data;
 }
 
-async function loadEmps() {
-  const { data, error } = await sb.from('kent_employees').select('*').order('id');
-  if (error) { console.error(error); return; }
-  const html = data.map(e => `<button class="${e.id===selEmp?'sel':''}" onclick="pick(${e.id})">${e.name}</button>`).join('');
-  document.getElementById('empGrid').innerHTML = html;
+function show(view) {
+  for (const v of ['viewLogin', 'viewPw', 'viewPunch', 'viewAdmin'])
+    $(v).style.display = v === view ? '' : 'none';
 }
+function setMsg(id, cls, text) { const m = $(id); m.className = 'msg ' + (cls || ''); m.textContent = text || ''; }
 
-window.pick = function(id) {
-  selEmp = id; document.getElementById('msg').className = 'msg';
-  loadEmps(); renderPanel();
+/* ---------- 登录 ---------- */
+async function renderLogin() {
+  show('viewLogin');
+  try {
+    const names = await rpc('kent_names');
+    $('nameGrid').innerHTML = names.map(n =>
+      `<button class="${n.name === loginName ? 'sel' : ''}" onclick="pickName('${n.name.replace(/'/g, "\\'")}')">${n.name}</button>`).join('');
+  } catch (e) {
+    setMsg('loginMsg', 'err', '连不上系统:' + e.message);
+  }
+}
+window.pickName = n => { loginName = n; renderLogin(); };
+
+$('loginBtn').onclick = async () => {
+  if (!loginName) { setMsg('loginMsg', 'err', '先点上面你的名字'); return; }
+  const pw = $('loginPw').value;
+  if (!pw) { setMsg('loginMsg', 'err', '请输入密码'); return; }
+  $('loginBtn').disabled = true;
+  setMsg('loginMsg', 'wait', '登录中…');
+  try {
+    const r = await rpc('kent_login', { p_name: loginName, p_password: pw });
+    if (!r.ok) { setMsg('loginMsg', 'err', r.err); $('loginBtn').disabled = false; return; }
+    ls.kent_token = r.token; ls.kent_name = r.name;
+    $('loginPw').value = '';
+    setMsg('loginMsg', '', '');
+    $('loginBtn').disabled = false;
+    if (r.must_change) show('viewPw'); else enterPunch();
+  } catch (e) { setMsg('loginMsg', 'err', e.message); $('loginBtn').disabled = false; }
 };
 
-async function renderPanel() {
-  if (!selEmp) return;
-  document.getElementById('panel').style.display = '';
-  const { data: emp } = await sb.from('kent_employees').select('name').eq('id', selEmp).single();
-  if (!emp) return;
-  document.getElementById('panelTitle').textContent = emp.name + ' 打卡';
+/* ---------- 改密码 ---------- */
+$('pwBtn').onclick = async () => {
+  const o = $('pwOld').value, n1 = $('pwNew').value, n2 = $('pwNew2').value;
+  if (!o || !n1) { setMsg('pwMsg', 'err', '请填完整'); return; }
+  if (n1 !== n2) { setMsg('pwMsg', 'err', '两次新密码不一样'); return; }
+  if (n1.length < 4) { setMsg('pwMsg', 'err', '新密码至少 4 位'); return; }
+  $('pwBtn').disabled = true;
+  try {
+    const r = await rpc('kent_change_password', { p_token: ls.kent_token, p_old: o, p_new: n1 });
+    $('pwBtn').disabled = false;
+    if (!r.ok) { setMsg('pwMsg', 'err', r.err); if (r.relogin) logout(); return; }
+    $('pwOld').value = $('pwNew').value = $('pwNew2').value = '';
+    enterPunch();
+  } catch (e) { setMsg('pwMsg', 'err', e.message); $('pwBtn').disabled = false; }
+};
 
-  const { data: today } = await sb.from('kent_punches')
-    .select('type, created_at')
-    .eq('employee_id', selEmp)
-    .gte('created_at', new Date().toISOString().split('T')[0])
-    .order('created_at');
-
-  const last = today?.[today.length - 1];
-  const goingIn = !last || last.type === 'out';
-  const b = document.getElementById('punchBtn');
+/* ---------- 打卡 ---------- */
+function renderToday(punches) {
+  const goingIn = !punches.length || punches[punches.length - 1].type === 'out';
+  const b = $('punchBtn');
   b.textContent = goingIn ? '上班打卡 ▶' : '下班打卡 ■';
   b.className = 'bigbtn ' + (goingIn ? 'in' : 'out');
   b.disabled = false;
-  document.getElementById('panelStatus').textContent = today?.length
-    ? '今天已打:' + today.map(p => (p.type === 'in' ? '上班 ' : '下班 ') + tstr(new Date(p.created_at))).join(' · ')
+  $('todayStatus').textContent = punches.length
+    ? '今天已打:' + punches.map(p => (p.type === 'in' ? '上班 ' : '下班 ') + p.hhmm).join(' · ')
     : '今天还没有打卡';
 }
 
-document.getElementById('punchBtn').onclick = () => {
-  const goingIn = document.getElementById('punchBtn').classList.contains('in');
-  const b = document.getElementById('punchBtn'), m = document.getElementById('msg');
-  b.disabled = true;
-  m.className = 'msg wait'; m.textContent = '正在定位,请稍候…';
+async function enterPunch() {
+  show('viewPunch');
+  $('whoami').textContent = ls.kent_name + ' 打卡';
+  setMsg('punchMsg', '', '');
+  try {
+    const r = await rpc('kent_my_today', { p_token: ls.kent_token });
+    if (!r.ok) { logout(); return; }
+    if (r.must_change) { show('viewPw'); return; }
+    renderToday(r.punches);
+  } catch (e) { setMsg('punchMsg', 'err', e.message); }
+}
 
+$('punchBtn').onclick = () => {
+  const goingIn = $('punchBtn').classList.contains('in');
+  $('punchBtn').disabled = true;
+  setMsg('punchMsg', 'wait', '正在定位,请稍候…');
+  if (!navigator.geolocation) { setMsg('punchMsg', 'err', '此设备不支持定位'); return; }
   navigator.geolocation.getCurrentPosition(async pos => {
     const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    const dist = Math.round(hav(here, CENTER));
+    const R = 6371000, r = x => x * Math.PI / 180;
+    const s = Math.sin(r(CENTER.lat - here.lat) / 2) ** 2 + Math.cos(r(here.lat)) * Math.cos(r(CENTER.lat)) * Math.sin(r(CENTER.lng - here.lng) / 2) ** 2;
+    const dist = Math.round(2 * R * Math.asin(Math.sqrt(s)));
     if (dist > RADIUS) {
-      m.className = 'msg err';
-      m.textContent = '距离中心约 ' + (dist > 1000 ? (dist/1000).toFixed(1) + ' 公里' : dist + ' 米') + ',打卡失败(范围 ' + RADIUS + ' 米)。';
-      renderPanel(); return;
+      setMsg('punchMsg', 'err', '你现在距离中心约 ' + (dist > 1000 ? (dist / 1000).toFixed(1) + ' 公里' : dist + ' 米') + ',不在打卡范围(' + RADIUS + ' 米),打卡失败。');
+      $('punchBtn').disabled = false; return;
     }
-
-    const { error } = await sb.from('kent_punches').insert({
-      employee_id: selEmp,
-      type: goingIn ? 'in' : 'out',
-      location_lat: here.lat,
-      location_lng: here.lng,
-      distance: dist
-    });
-
-    if (error) {
-      m.className = 'msg err'; m.textContent = '保存失败:' + error.message;
-      renderPanel(); return;
-    }
-
-    m.className = 'msg ok'; m.textContent = '✅ ' + (goingIn ? '上班' : '下班') + '打卡成功';
-    renderPanel(); renderToday();
-    sb.channel('kent_punches').on('postgres_changes', { event: '*', schema: 'public', table: 'kent_punches' }, () => { renderToday(); }).subscribe();
+    try {
+      const res = await rpc('kent_punch', { p_token: ls.kent_token, p_type: goingIn ? 'in' : 'out', p_lat: here.lat, p_lng: here.lng, p_dist: dist });
+      if (!res.ok) { setMsg('punchMsg', 'err', res.err); if (res.relogin) { logout(); return; } $('punchBtn').disabled = false; if (res.err === '请先修改密码') show('viewPw'); return; }
+      setMsg('punchMsg', 'ok', '✅ ' + (goingIn ? '上班' : '下班') + '打卡成功(距中心 ' + dist + ' 米)');
+      renderToday(res.punches);
+    } catch (e) { setMsg('punchMsg', 'err', e.message); $('punchBtn').disabled = false; }
   }, err => {
-    m.className = 'msg err';
-    m.textContent = err.code === 1 ? '定位权限被拒。请在浏览器设置允许定位。' : '定位失败,请重试。';
-    renderPanel();
+    setMsg('punchMsg', 'err', err.code === 1 ? '定位权限被拒。请在手机设置里允许本网页/浏览器使用定位。' : '定位失败,请重试。');
+    $('punchBtn').disabled = false;
   }, { enableHighAccuracy: true, timeout: 20000 });
 };
 
-async function renderToday() {
-  const t = dstr(Date.now());
-  const { data: list } = await sb.from('kent_punches')
-    .select('employee_id, type, created_at, kent_employees(name)')
-    .gte('created_at', new Date(t).toISOString())
-    .lt('created_at', new Date(Date.parse(t) + 86400000).toISOString())
-    .order('created_at', { ascending: false });
-
-  document.getElementById('todayList').innerHTML = list?.length
-    ? list.map(p => `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between">
-        <span>${p.employees.name}</span>
-        <span><span class="tag ${p.type}">${p.type==='in'?'上班':'下班'}</span> ${tstr(new Date(p.created_at))}</span></div>`).join('')
-    : '<div style="color:#889">今天还没有人打卡</div>';
+function logout() {
+  if (ls.kent_token) rpc('kent_logout', { p_token: ls.kent_token }).catch(() => {});
+  ls.removeItem('kent_token'); ls.removeItem('kent_name');
+  loginName = null;
+  renderLogin();
 }
+$('logoutBtn').onclick = () => { if (confirm('退出登录?下次要重新输密码。')) logout(); };
 
-async function renderReport() {
-  const ym = document.getElementById('monthPick').value;
-  const start = ym + '-01', end = new Date(Date.parse(ym + '-01') + 86400000*32).toISOString().split('T')[0];
+/* ---------- 管理员 ---------- */
+$('adminEntry').onclick = () => { show('viewAdmin'); if (ls.kent_admin) { $('adminGate').style.display = 'none'; $('adminPanel').style.display = ''; loadReport(); } };
+$('adminExitBtn').onclick = () => { if (confirm('退出管理并清除本机口令?')) { ls.removeItem('kent_admin'); location.reload(); } };
 
-  const { data: all } = await sb.from('kent_punches')
-    .select('employee_id, type, created_at, kent_employees(name)')
-    .gte('created_at', start)
-    .lt('created_at', end)
-    .order('created_at');
+$('adminLoginBtn').onclick = async () => {
+  const code = $('adminCode').value.trim();
+  if (!code) return;
+  setMsg('adminGateMsg', 'wait', '验证中…');
+  try {
+    const r = await rpc('kent_admin_report', { p_code: code, p_month: $('monthPick').value });
+    if (!r.ok) { setMsg('adminGateMsg', 'err', r.err); return; }
+    ls.kent_admin = code; $('adminCode').value = '';
+    $('adminGate').style.display = 'none'; $('adminPanel').style.display = '';
+    renderReport(r);
+  } catch (e) { setMsg('adminGateMsg', 'err', e.message); }
+};
 
-  if (!all?.length) { document.getElementById('reportTable').innerHTML = '<div style="color:#889">本月没有记录</div>'; return; }
+async function loadReport() {
+  setMsg('adminMsg', 'wait', '载入中…');
+  try {
+    const r = await rpc('kent_admin_report', { p_code: ls.kent_admin, p_month: $('monthPick').value });
+    if (!r.ok) { setMsg('adminMsg', 'err', r.err); if (r.err.includes('口令')) { ls.removeItem('kent_admin'); location.reload(); } return; }
+    renderReport(r);
+  } catch (e) { setMsg('adminMsg', 'err', e.message); }
+}
+$('loadBtn').onclick = loadReport;
+$('monthPick').onchange = loadReport;
 
-  const byDay = {}, byPerson = {};
-  all.forEach(p => {
-    const d = dstr(new Date(p.created_at)), name = p.employees.name;
-    if (!byDay[d]) byDay[d] = [];
-    if (!byPerson[name]) byPerson[name] = { days: 0, hours: 0 };
-    byDay[d].push(p);
-  });
-
-  Object.keys(byDay).sort().forEach(d => {
-    const dayData = {};
-    byDay[d].forEach(p => {
-      const name = p.employees.name;
-      if (!dayData[name]) dayData[name] = [];
-      dayData[name].push(p);
-    });
-    Object.keys(dayData).forEach(name => {
-      const evs = dayData[name].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-      if (evs[0]?.type === 'in' && evs[1]?.type === 'out') {
-        const hours = (new Date(evs[1].created_at) - new Date(evs[0].created_at)) / 3600000;
-        byPerson[name].days++;
-        byPerson[name].hours += hours;
+function calc(r) {
+  const byPerson = {};
+  for (const p of r.punches) {
+    const k = p.name;
+    ((byPerson[k] = byPerson[k] || {})[p.d] = byPerson[k][p.d] || []).push(p);
+  }
+  const rates = Object.fromEntries(r.employees.map(e => [e.name, Number(e.rate)]));
+  const rows = [], sums = {};
+  for (const name of Object.keys(byPerson).sort()) {
+    sums[name] = { days: 0, hours: 0 };
+    for (const d of Object.keys(byPerson[name]).sort()) {
+      const evs = byPerson[name][d];
+      let open = null, dayHours = 0, worked = false;
+      for (const e of evs) {
+        if (e.type === 'in') open = e;
+        else if (open) {
+          const h = (toMin(e.hhmm) - toMin(open.hhmm)) / 60;
+          rows.push({ d, name, in: open.hhmm, out: e.hhmm, hours: h });
+          dayHours += h; worked = true; open = null;
+        }
       }
-    });
-  });
+      if (open) rows.push({ d, name, in: open.hhmm, out: null, hours: 0 });
+      if (worked || open) sums[name].days++;
+      sums[name].hours += dayHours;
+    }
+  }
+  return { rows, sums, rates };
+}
+const toMin = hhmm => +hhmm.slice(0, 2) * 60 + +hhmm.slice(3, 5);
 
-  let html = '<div class="rpt-row hd"><div>日期</div><div>员工</div><div>上班</div><div>下班</div><div>小时</div></div>';
-  Object.keys(byDay).sort().forEach(d => {
-    const dayData = {};
-    byDay[d].forEach(p => {
-      const name = p.employees.name;
-      if (!dayData[name]) dayData[name] = [];
-      dayData[name].push(p);
-    });
-    Object.keys(dayData).forEach(name => {
-      const evs = dayData[name].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-      const inT = evs[0] ? tstr(new Date(evs[0].created_at)) : '—';
-      const outT = evs[1] ? tstr(new Date(evs[1].created_at)) : '—';
-      const hours = evs[0]?.type === 'in' && evs[1]?.type === 'out'
-        ? ((new Date(evs[1].created_at) - new Date(evs[0].created_at)) / 3600000).toFixed(2)
-        : '缺卡';
-      html += `<div class="rpt-row"><div class="rpt-cell left">${d.slice(5)}</div><div>${name}</div><div>${inT}</div><div>${outT}</div><div>${hours}</div></div>`;
-    });
-  });
-
-  html += '<div class="rpt-row hd" style="margin-top:12px"><div>员工</div><div>出勤天</div><div>总小时</div></div>';
-  Object.keys(byPerson).sort().forEach(name => {
-    const v = byPerson[name];
-    html += `<div class="rpt-row"><div class="rpt-cell left">${name}</div><div>${v.days}</div><div>${v.hours.toFixed(2)}</div></div>`;
-  });
-
-  document.getElementById('reportTable').innerHTML = html;
+function renderReport(r) {
+  adminData = r;
+  setMsg('adminMsg', '', '');
+  const { rows, sums, rates } = calc(r);
+  $('detailBody').innerHTML = rows.map(x =>
+    `<tr><td>${x.d.slice(5)}</td><td>${x.name}</td><td>${x.in}</td><td>${x.out || '<span class="flag">缺下班卡</span>'}</td><td class="num">${x.out ? x.hours.toFixed(2) : '—'}</td></tr>`).join('')
+    || '<tr><td colspan="5" style="color:#889">本月没有打卡记录</td></tr>';
+  $('sumBody').innerHTML = Object.keys(sums).sort().map(n => {
+    const s = sums[n], rate = rates[n] || 0;
+    return `<tr><td>${n}</td><td class="num">${s.days}</td><td class="num">${s.hours.toFixed(2)}</td><td class="num">${rate.toFixed(2)}</td><td class="num"><b>${(s.hours * rate).toFixed(2)}</b></td></tr>`;
+  }).join('') || '<tr><td colspan="5" style="color:#889">—</td></tr>';
+  $('empMgr').innerHTML = r.employees.map(e =>
+    `<div class="emp-row"><span><b>${e.name}</b> <span class="badge">时薪 $${Number(e.rate).toFixed(2)}</span>
+      ${!e.has_pw ? '<span class="badge warn">未设密码</span>' : e.must_change ? '<span class="badge warn">还没改初始密码</span>' : ''}</span>
+      <span><button class="btn sm" onclick="setPw('${e.name.replace(/'/g, "\\'")}')">设密码</button>
+      <button class="btn sm" onclick="setRate('${e.name.replace(/'/g, "\\'")}')">改时薪</button></span></div>`).join('');
 }
 
-document.getElementById('tabPunch').onclick = () => {
-  document.getElementById('tabPunch').className = 'on';
-  document.getElementById('tabReport').className = '';
-  document.getElementById('viewPunch').style.display = '';
-  document.getElementById('viewReport').style.display = 'none';
+window.setPw = async n => {
+  const pw = prompt('给 ' + n + ' 设初始密码(至少 4 位)。设完告诉 TA,首次登录会强制改掉:');
+  if (!pw) return;
+  const r = await rpc('kent_admin_reset', { p_code: ls.kent_admin, p_name: n, p_new: pw }).catch(e => ({ ok: false, err: e.message }));
+  alert(r.ok ? '已设置。' + n + ' 的初始密码:' + pw : r.err);
+  loadReport();
 };
-document.getElementById('tabReport').onclick = () => {
-  document.getElementById('tabReport').className = 'on';
-  document.getElementById('tabPunch').className = '';
-  document.getElementById('viewReport').style.display = '';
-  document.getElementById('viewPunch').style.display = 'none';
-  renderReport();
+window.setRate = async n => {
+  const v = prompt(n + ' 的时薪(美元/小时):');
+  if (v === null || v === '' || isNaN(+v)) return;
+  const r = await rpc('kent_admin_set_rate', { p_code: ls.kent_admin, p_name: n, p_rate: +v }).catch(e => ({ ok: false, err: e.message }));
+  if (!r.ok) alert(r.err);
+  loadReport();
 };
 
+$('csvBtn').onclick = () => {
+  if (!adminData) return;
+  const { rows, sums, rates } = calc(adminData);
+  let csv = '﻿姓名,日期,上班,下班,小时,备注\n';
+  for (const x of rows) csv += `${x.name},${x.d},${x.in},${x.out || ''},${x.out ? x.hours.toFixed(2) : ''},${x.out ? '' : '缺下班卡'}\n`;
+  csv += '\n姓名,出勤天数,总小时,时薪,工资\n';
+  for (const n of Object.keys(sums).sort()) {
+    const s = sums[n], rate = rates[n] || 0;
+    csv += `${n},${s.days},${s.hours.toFixed(2)},${rate.toFixed(2)},${(s.hours * rate).toFixed(2)}\n`;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'kent-打卡-' + $('monthPick').value + '.csv'; a.click(); URL.revokeObjectURL(a.href);
+};
+
+/* ---------- 启动 ---------- */
 const now = new Date();
-document.getElementById('monthPick').value = now.getFullYear() + '-' + pad(now.getMonth() + 1);
-document.getElementById('monthPick').onchange = () => renderReport();
-
-loadEmps(); renderToday();
-sb.channel('kent_punches').on('postgres_changes', { event: '*', schema: 'public', table: 'kent_punches' }, () => {
-  loadEmps(); renderToday();
-}).subscribe();
+$('monthPick').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+if (ls.kent_token) enterPunch(); else renderLogin();
 </script>
 </body>
 </html>
