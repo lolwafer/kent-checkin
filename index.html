@@ -52,7 +52,7 @@
 <body>
 <header>
   <h1>Kent Senior Center 打卡</h1>
-  <div class="sub">144-89 38th Ave, Flushing · 现场 50 米内打卡</div>
+  <div class="sub">144-89 38th Ave, Flushing · 现场 164 尺内打卡</div>
 </header>
 
 <!-- 登录 -->
@@ -114,7 +114,7 @@
 </main>
 
 <footer>
-  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16l
+  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16m
 </footer>
 
 <script>
@@ -198,14 +198,16 @@ $('punchBtn').onclick = () => {
     let best = null;
     for (const z of zones) { const d = distTo(z); if (!best || d < best.d) best = { z, d }; }
     const dist = best.d;
+    const ft = m => Math.round(m * 3.28084);
+    const ftStr = m => m > 1609 ? (m / 1609.34).toFixed(1) + ' 英里' : ft(m) + ' 尺';
     if (dist > best.z.r) {
-      setMsg('punchMsg', 'err', '你现在距离' + best.z.name + '约 ' + (dist > 1000 ? (dist / 1000).toFixed(1) + ' 公里' : dist + ' 米') + ',不在打卡范围(' + best.z.r + ' 米),打卡失败。');
+      setMsg('punchMsg', 'err', '你现在距离' + best.z.name + '约 ' + ftStr(dist) + ',不在打卡范围(' + ft(best.z.r) + ' 尺),打卡失败。');
       $('punchBtn').disabled = false; return;
     }
     try {
       const res = await rpc('kent_punch', { p_token: ls.kent_token, p_type: goingIn ? 'in' : 'out', p_lat: here.lat, p_lng: here.lng, p_dist: dist });
       if (!res.ok) { setMsg('punchMsg', 'err', res.err); if (res.relogin) { logout(); return; } $('punchBtn').disabled = false; return; }
-      setMsg('punchMsg', 'ok', '✅ ' + (goingIn ? '上班' : '下班') + '打卡成功(距中心 ' + dist + ' 米)');
+      setMsg('punchMsg', 'ok', '✅ ' + (goingIn ? '上班' : '下班') + '打卡成功(距离 ' + ft(dist) + ' 尺)');
       renderToday(res.punches);
     } catch (e) { setMsg('punchMsg', 'err', e.message); $('punchBtn').disabled = false; }
   }, err => {
