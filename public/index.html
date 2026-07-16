@@ -111,7 +111,7 @@ function hav(a, b) {
 }
 
 async function loadEmps() {
-  const { data, error } = await supabase.from('employees').select('*').order('id');
+  const { data, error } = await supabase.from('kent_employees').select('*').order('id');
   if (error) { console.error(error); return; }
   const html = data.map(e => `<button class="${e.id===selEmp?'sel':''}" onclick="pick(${e.id})">${e.name}</button>`).join('');
   document.getElementById('empGrid').innerHTML = html;
@@ -125,11 +125,11 @@ window.pick = function(id) {
 async function renderPanel() {
   if (!selEmp) return;
   document.getElementById('panel').style.display = '';
-  const { data: emp } = await supabase.from('employees').select('name').eq('id', selEmp).single();
+  const { data: emp } = await supabase.from('kent_employees').select('name').eq('id', selEmp).single();
   if (!emp) return;
   document.getElementById('panelTitle').textContent = emp.name + ' 打卡';
 
-  const { data: today } = await supabase.from('punches')
+  const { data: today } = await supabase.from('kent_punches')
     .select('type, created_at')
     .eq('employee_id', selEmp)
     .gte('created_at', new Date().toISOString().split('T')[0])
@@ -161,7 +161,7 @@ document.getElementById('punchBtn').onclick = () => {
       renderPanel(); return;
     }
 
-    const { error } = await supabase.from('punches').insert({
+    const { error } = await supabase.from('kent_punches').insert({
       employee_id: selEmp,
       type: goingIn ? 'in' : 'out',
       location_lat: here.lat,
@@ -176,7 +176,7 @@ document.getElementById('punchBtn').onclick = () => {
 
     m.className = 'msg ok'; m.textContent = '✅ ' + (goingIn ? '上班' : '下班') + '打卡成功';
     renderPanel(); renderToday();
-    supabase.channel('punches').on('postgres_changes', { event: '*', schema: 'public', table: 'punches' }, () => { renderToday(); }).subscribe();
+    supabase.channel('kent_punches').on('postgres_changes', { event: '*', schema: 'public', table: 'kent_punches' }, () => { renderToday(); }).subscribe();
   }, err => {
     m.className = 'msg err';
     m.textContent = err.code === 1 ? '定位权限被拒。请在浏览器设置允许定位。' : '定位失败,请重试。';
@@ -186,8 +186,8 @@ document.getElementById('punchBtn').onclick = () => {
 
 async function renderToday() {
   const t = dstr(Date.now());
-  const { data: list } = await supabase.from('punches')
-    .select('employee_id, type, created_at, employees(name)')
+  const { data: list } = await supabase.from('kent_punches')
+    .select('employee_id, type, created_at, kent_employees(name)')
     .gte('created_at', new Date(t).toISOString())
     .lt('created_at', new Date(Date.parse(t) + 86400000).toISOString())
     .order('created_at', { ascending: false });
@@ -203,8 +203,8 @@ async function renderReport() {
   const ym = document.getElementById('monthPick').value;
   const start = ym + '-01', end = new Date(Date.parse(ym + '-01') + 86400000*32).toISOString().split('T')[0];
 
-  const { data: all } = await supabase.from('punches')
-    .select('employee_id, type, created_at, employees(name)')
+  const { data: all } = await supabase.from('kent_punches')
+    .select('employee_id, type, created_at, kent_employees(name)')
     .gte('created_at', start)
     .lt('created_at', end)
     .order('created_at');
@@ -283,7 +283,7 @@ document.getElementById('monthPick').value = now.getFullYear() + '-' + pad(now.g
 document.getElementById('monthPick').onchange = () => renderReport();
 
 loadEmps(); renderToday();
-supabase.channel('punches').on('postgres_changes', { event: '*', schema: 'public', table: 'punches' }, () => {
+supabase.channel('kent_punches').on('postgres_changes', { event: '*', schema: 'public', table: 'kent_punches' }, () => {
   loadEmps(); renderToday();
 }).subscribe();
 </script>
