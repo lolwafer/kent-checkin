@@ -52,7 +52,7 @@
 <body>
 <header>
   <h1>Kent Senior Center 打卡</h1>
-  <div class="sub">144-89 38th Ave, Flushing · 现场 150 米内打卡</div>
+  <div class="sub">144-89 38th Ave, Flushing · 现场 50 米内打卡</div>
 </header>
 
 <!-- 登录 -->
@@ -114,13 +114,13 @@
 </main>
 
 <footer>
-  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16k
+  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16l
 </footer>
 
 <script>
 const ZONES = [
-  { name: 'Kent 中心', lat: 40.7638555, lng: -73.8196091, r: 150 },                    // 144-89 38th Ave, Flushing
-  { name: 'Great Neck', lat: 40.7994795, lng: -73.7449667, r: 150, only: ['wafer'] },  // 3 Lawson Ln(仅 wafer)
+  { name: 'Kent 中心', lat: 40.7638555, lng: -73.8196091, r: 50 },                    // 144-89 38th Ave, Flushing
+  { name: 'Great Neck', lat: 40.7994795, lng: -73.7449667, r: 50, only: ['wafer'] },  // 3 Lawson Ln(仅 wafer)
 ];
 const zonesFor = name => ZONES.filter(z => !z.only || z.only.includes(name));
 const SB_URL = 'https://objoggkkfqzzkfnitjlb.supabase.co';
