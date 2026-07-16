@@ -114,12 +114,15 @@
 </main>
 
 <footer>
-  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16i
+  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16j
 </footer>
 
 <script>
-const CENTER = { lat: 40.7638555, lng: -73.8196091 };
-const RADIUS = 150;
+const ZONES = [
+  { name: 'Kent 中心', lat: 40.7638555, lng: -73.8196091, r: 150 },                    // 144-89 38th Ave, Flushing
+  { name: 'Great Neck', lat: 40.7994795, lng: -73.7449667, r: 150, only: ['wafer'] },  // 3 Lawson Ln(仅 wafer)
+];
+const zonesFor = name => ZONES.filter(z => !z.only || z.only.includes(name));
 const SB_URL = 'https://objoggkkfqzzkfnitjlb.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9iam9nZ2trZnF6emtmbml0amxiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNzQ5MjcsImV4cCI6MjA5OTc1MDkyN30.y_giQDWURvKJ_FgZTsBZru9NEs7QtDoBY2P_fl4M1vQ';
 
@@ -190,10 +193,13 @@ $('punchBtn').onclick = () => {
   navigator.geolocation.getCurrentPosition(async pos => {
     const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     const R = 6371000, r = x => x * Math.PI / 180;
-    const s = Math.sin(r(CENTER.lat - here.lat) / 2) ** 2 + Math.cos(r(here.lat)) * Math.cos(r(CENTER.lat)) * Math.sin(r(CENTER.lng - here.lng) / 2) ** 2;
-    const dist = Math.round(2 * R * Math.asin(Math.sqrt(s)));
-    if (dist > RADIUS) {
-      setMsg('punchMsg', 'err', '你现在距离中心约 ' + (dist > 1000 ? (dist / 1000).toFixed(1) + ' 公里' : dist + ' 米') + ',不在打卡范围(' + RADIUS + ' 米),打卡失败。');
+    const distTo = z => Math.round(2 * R * Math.asin(Math.sqrt(Math.sin(r(z.lat - here.lat) / 2) ** 2 + Math.cos(r(here.lat)) * Math.cos(r(z.lat)) * Math.sin(r(z.lng - here.lng) / 2) ** 2)));
+    const zones = zonesFor(ls.kent_name);
+    let best = null;
+    for (const z of zones) { const d = distTo(z); if (!best || d < best.d) best = { z, d }; }
+    const dist = best.d;
+    if (dist > best.z.r) {
+      setMsg('punchMsg', 'err', '你现在距离' + best.z.name + '约 ' + (dist > 1000 ? (dist / 1000).toFixed(1) + ' 公里' : dist + ' 米') + ',不在打卡范围(' + best.z.r + ' 米),打卡失败。');
       $('punchBtn').disabled = false; return;
     }
     try {
