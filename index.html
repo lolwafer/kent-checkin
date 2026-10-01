@@ -90,49 +90,8 @@
   </div>
 </main>
 
-<!-- 管理员 -->
-<main id="viewAdmin" style="display:none">
-  <div class="card" id="adminGate">
-    <h2>管理员口令</h2>
-    <input type="password" id="adminCode" placeholder="口令">
-    <button class="bigbtn in" id="adminLoginBtn">进入</button>
-    <div class="msg" id="adminGateMsg"></div>
-  </div>
-  <div id="adminPanel" style="display:none">
-    <div class="card">
-      <div class="topbar"><b>月度报表</b><button class="link" id="adminExitBtn">退出管理</button></div>
-      <div class="row">
-        <input type="month" id="monthPick">
-        <button class="btn solid" id="loadBtn">载入</button>
-        <button class="btn" id="csvBtn">导出 CSV</button>
-      </div>
-      <div class="msg" id="adminMsg"></div>
-    </div>
-    <div class="card">
-      <h2>每人汇总(小时数发给会计)</h2>
-      <table><thead><tr><th>姓名</th><th class="num">出勤天数</th><th class="num">总小时</th></tr></thead>
-      <tbody id="sumBody"></tbody></table>
-    </div>
-    <div class="card">
-      <h2>每天打卡明细</h2>
-      <table><thead><tr><th>日期</th><th>姓名</th><th>上班</th><th>下班</th><th class="num">小时</th></tr></thead>
-      <tbody id="detailBody"></tbody></table>
-    </div>
-    <div class="card">
-      <h2>待审批的修改申请</h2>
-      <div id="reqList"></div>
-    </div>
-    <div class="card">
-      <div class="topbar"><h2 style="margin:0">员工管理</h2><button class="btn sm" id="togglePwBtn">显示密码</button></div>
-      <div id="empMgr"></div>
-      <div class="status" style="margin-top:8px">密码是一次性的:登录成功立即自动换新,列表里显示的永远是下次登录用的密码(旧的作废,告诉过别人也没用)。「设密码」可手动重设(该人已登录设备会被踢下线)。加人/删人找 Claude。</div>
-      <div class="row"><button class="btn" id="adminPwBtn">修改管理员口令</button></div>
-    </div>
-  </div>
-</main>
-
 <footer>
-  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-07-16o
+  <button class="link" id="adminEntry">管理员入口</button> · Kent 打卡 v2026-10-01
 </footer>
 
 <script>
@@ -147,7 +106,6 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 const sb = window.supabase.createClient(SB_URL, SB_KEY);
 const $ = id => document.getElementById(id);
 const ls = localStorage;
-let adminData = null;
 
 async function rpc(fn, args) {
   const { data, error } = await sb.rpc(fn, args || {});
@@ -156,7 +114,7 @@ async function rpc(fn, args) {
 }
 
 function show(view) {
-  for (const v of ['viewLogin', 'viewPunch', 'viewAdmin'])
+  for (const v of ['viewLogin', 'viewPunch'])
     $(v).style.display = v === view ? '' : 'none';
 }
 function setMsg(id, cls, text) { const m = $(id); m.className = 'msg ' + (cls || ''); m.textContent = text || ''; }
@@ -292,138 +250,11 @@ function logout() {
 }
 $('logoutBtn').onclick = () => { if (confirm('退出登录?下次要重新输密码。')) logout(); };
 
-/* ---------- 管理员 ---------- */
-$('adminEntry').onclick = () => { show('viewAdmin'); if (ls.kent_admin) { $('adminGate').style.display = 'none'; $('adminPanel').style.display = ''; loadReport(); } };
-$('adminExitBtn').onclick = () => { if (confirm('退出管理并清除本机口令?')) { ls.removeItem('kent_admin'); location.reload(); } };
-
-$('adminLoginBtn').onclick = async () => {
-  const code = $('adminCode').value.trim();
-  if (!code) return;
-  setMsg('adminGateMsg', 'wait', '验证中…');
-  try {
-    const r = await rpc('kent_admin_report', { p_code: code, p_month: $('monthPick').value });
-    if (!r.ok) { setMsg('adminGateMsg', 'err', r.err); return; }
-    ls.kent_admin = code; $('adminCode').value = '';
-    $('adminGate').style.display = 'none'; $('adminPanel').style.display = '';
-    renderReport(r);
-  } catch (e) { setMsg('adminGateMsg', 'err', e.message); }
-};
-
-async function loadReport() {
-  setMsg('adminMsg', 'wait', '载入中…');
-  try {
-    const r = await rpc('kent_admin_report', { p_code: ls.kent_admin, p_month: $('monthPick').value });
-    if (!r.ok) { setMsg('adminMsg', 'err', r.err); if (r.err.includes('口令')) { ls.removeItem('kent_admin'); location.reload(); } return; }
-    renderReport(r);
-  } catch (e) { setMsg('adminMsg', 'err', e.message); }
-}
-$('loadBtn').onclick = loadReport;
-$('monthPick').onchange = loadReport;
-
-function calc(r) {
-  const byPerson = {};
-  for (const p of r.punches) {
-    const k = p.name;
-    ((byPerson[k] = byPerson[k] || {})[p.d] = byPerson[k][p.d] || []).push(p);
-  }
-  const rows = [], sums = {};
-  for (const name of Object.keys(byPerson).sort()) {
-    sums[name] = { days: 0, hours: 0 };
-    for (const d of Object.keys(byPerson[name]).sort()) {
-      const evs = byPerson[name][d];
-      let open = null, dayHours = 0, worked = false;
-      for (const e of evs) {
-        if (e.type === 'in') open = e;
-        else if (open) {
-          const h = (toMin(e.hhmm) - toMin(open.hhmm)) / 60;
-          rows.push({ d, name, in: open.hhmm + (open.manual ? '*' : ''), out: e.hhmm + (e.manual ? '*' : ''), hours: h });
-          dayHours += h; worked = true; open = null;
-        }
-      }
-      if (open) rows.push({ d, name, in: open.hhmm, out: null, hours: 0 });
-      if (worked || open) sums[name].days++;
-      sums[name].hours += dayHours;
-    }
-  }
-  return { rows, sums };
-}
+/* ---------- 管理员:2026-10-01 起搬到 /admin(工时表、补卡审批、签到表、每月工资表) ---------- */
+$('adminEntry').onclick = () => { location.href = '/admin'; };
 const toMin = hhmm => +hhmm.slice(0, 2) * 60 + +hhmm.slice(3, 5);
 
-function renderReport(r) {
-  adminData = r;
-  setMsg('adminMsg', '', '');
-  const { rows, sums } = calc(r);
-  $('detailBody').innerHTML = rows.map(x =>
-    `<tr><td>${x.d.slice(5)}</td><td>${x.name}</td><td>${x.in}</td><td>${x.out || '<span class="flag">缺下班卡</span>'}</td><td class="num">${x.out ? x.hours.toFixed(2) : '—'}</td></tr>`).join('')
-    || '<tr><td colspan="5" style="color:#889">本月没有打卡记录</td></tr>';
-  $('reqList').innerHTML = (r.requests || []).map(q =>
-    `<div class="emp-row"><span><b>${q.name}</b> ${q.d} ${q.in}–${q.out}<br>
-      <span style="font-size:12px;color:#889">原因:${q.reason || '(未填)'} · 提交于 ${q.at}</span></span>
-      <span><button class="btn sm solid" onclick="decide(${q.id}, true)">批准</button>
-      <button class="btn sm" style="border-color:#c62828;color:#c62828" onclick="decide(${q.id}, false)">拒绝</button></span></div>`).join('')
-    || '<div style="color:#889;font-size:14px">没有待审批的申请</div>';
-  $('sumBody').innerHTML = Object.keys(sums).sort().map(n => {
-    const s = sums[n];
-    return `<tr><td>${n}</td><td class="num">${s.days}</td><td class="num"><b>${s.hours.toFixed(2)}</b></td></tr>`;
-  }).join('') || '<tr><td colspan="3" style="color:#889">—</td></tr>';
-  $('empMgr').innerHTML = r.employees.map(e =>
-    `<div class="emp-row"><span><b>${e.name}</b>
-      ${e.has_pw ? `<span class="badge pwbadge" style="display:${showPw ? '' : 'none'}">密码 ${e.pw || '?'}</span>` : ''}
-      ${!e.has_pw ? '<span class="badge warn">未设密码</span>' : ''}</span>
-      <span><button class="btn sm" onclick="setPw('${e.name.replace(/'/g, "\\'")}')">设密码</button></span></div>`).join('');
-}
-
-window.decide = async (id, ok) => {
-  if (!confirm(ok ? '批准这条修改?当天原有打卡记录会被替换。' : '拒绝这条申请?')) return;
-  const r = await rpc('kent_admin_decide', { p_code: ls.kent_admin, p_req_id: id, p_approve: ok }).catch(e => ({ ok: false, err: e.message }));
-  if (!r.ok) alert(r.err);
-  loadReport();
-};
-
-let showPw = false;
-$('togglePwBtn').onclick = () => {
-  showPw = !showPw;
-  $('togglePwBtn').textContent = showPw ? '隐藏密码' : '显示密码';
-  document.querySelectorAll('.pwbadge').forEach(b => b.style.display = showPw ? '' : 'none');
-};
-
-$('adminPwBtn').onclick = async () => {
-  const n1 = prompt('新管理员口令(至少 6 位):');
-  if (!n1) return;
-  const n2 = prompt('再输一遍确认:');
-  if (n1 !== n2) { alert('两次输入不一样'); return; }
-  const r = await rpc('kent_admin_set_code', { p_code: ls.kent_admin, p_new: n1 }).catch(e => ({ ok: false, err: e.message }));
-  if (!r.ok) { alert(r.err); return; }
-  ls.kent_admin = n1;
-  alert('管理员口令已改为:' + n1 + '\n请记好,本机已自动更新。');
-};
-
-window.setPw = async n => {
-  const pw = prompt('给 ' + n + ' 设登录密码(至少 4 位),设完用它在 TA 手机上登录:');
-  if (!pw) return;
-  const r = await rpc('kent_admin_reset', { p_code: ls.kent_admin, p_name: n, p_new: pw }).catch(e => ({ ok: false, err: e.message }));
-  alert(r.ok ? '已设置。' + n + ' 的密码:' + pw + '\n用它在 TA 手机上登录即可。' : r.err);
-  loadReport();
-};
-
-$('csvBtn').onclick = () => {
-  if (!adminData) return;
-  const { rows, sums } = calc(adminData);
-  let csv = '﻿姓名,日期,上班,下班,小时,备注\n';
-  for (const x of rows) csv += `${x.name},${x.d},${x.in},${x.out || ''},${x.out ? x.hours.toFixed(2) : ''},${x.out ? '' : '缺下班卡'}\n`;
-  csv += '\n姓名,出勤天数,总小时\n';
-  for (const n of Object.keys(sums).sort()) {
-    const s = sums[n];
-    csv += `${n},${s.days},${s.hours.toFixed(2)}\n`;
-  }
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = 'kent-打卡-' + $('monthPick').value + '.csv'; a.click(); URL.revokeObjectURL(a.href);
-};
-
 /* ---------- 启动 ---------- */
-const now = new Date();
-$('monthPick').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
 if (ls.kent_token) enterPunch(); else renderLogin();
 </script>
 </body>
